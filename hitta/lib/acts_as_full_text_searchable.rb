@@ -1,5 +1,5 @@
 module ActsAsFullTextSearchable
-  class Word < ::ActiveRecord::Base
+  class Term < ::ActiveRecord::Base
     belongs_to :searchable, :polymorphic => true
   end
 
@@ -14,7 +14,7 @@ module ActsAsFullTextSearchable
       end
       include ActsAsFullTextSearchable::InstanceMethods
 
-      has_many :words, :as => :searchable, :class_name => 'ActsAsFullTextSearchable::Word'
+      has_many :full_text_terms, :as => :searchable, :class_name => 'ActsAsFullTextSearchable::Term'
       
       after_save :update_full_text_index
     end
@@ -27,29 +27,32 @@ module ActsAsFullTextSearchable
     
     def find_by_full_text_search_sql(columns, query)
       where_clause = full_text_query_to_sql_where_clause(query)
-      columns = columns.split(' ').collect{|c| "#{table_name}.#{c}"}
-       %{
-        SELECT DISTINCT(#{table_name}.id), #{columns} FROM #{table_name}
-        INNER JOIN #{Word.table_name} 
-          ON #{Word.table_name}.searchable_type = '#{name}'
-            AND #{Word.table_name}.searchable_id = #{table_name}.id
-        WHERE #{where_clause}
-      }
+      "SELECT DISTINCT(id), #{columns} FROM #{table_name} WHERE #{where_clause}"
+    end
+    
+    def single_term_full_text_query_to_sql(query_term)
+      send(:sanitize_sql, [%{
+        SELECT DISTINCT(#{table_name}.id) FROM #{table_name}
+        INNER JOIN #{Term.table_name} 
+          ON #{Term.table_name}.searchable_type = '#{name}'
+            AND #{Term.table_name}.searchable_id = #{table_name}.id
+        WHERE LOWER(#{Term.table_name}.term) = LOWER(?)
+      }, query_term])
     end
     
     def full_text_query_to_sql_where_clause(query)
       query.split(' ').collect do |term|
-        send(:sanitize_sql, ["#{Word.table_name}.word = ?", term.downcase])
+        "id IN (#{single_term_full_text_query_to_sql(term)})"
       end.join(' AND ')
     end
   end
   
   module InstanceMethods
     def update_full_text_index
-      Word.delete_all(:searchable_id => self.id, :searchable_type => self.class.name)
+      Term.delete_all(:searchable_id => self.id, :searchable_type => self.class.name)
       full_text_indexed_attributes.each do |attribute|
-        words_for(self.send(attribute)).each do |word|
-          self.words.find_or_create_by_attribute_name_and_word(attribute, word)
+        full_text_terms_for(self.send(attribute)).each do |term|
+          self.full_text_terms.find_or_create_by_attribute_name_and_term(attribute, term)
         end
       end
     end
@@ -60,17 +63,17 @@ module ActsAsFullTextSearchable
       attributes.keys - ['id']
     end
     
-    def words_for(value)
+    def full_text_terms_for(value)
       value.to_s.split(/\s/).collect(&:downcase)
     end
   end
   
   def setup_schema
-    ActiveRecord::Base.connection.create_table(Word.table_name) do |t|
+    ActiveRecord::Base.connection.create_table(Term.table_name) do |t|
       t.column 'searchable_id', :integer
       t.column 'searchable_type', :string
       t.column 'attribute_name', :string
-      t.column 'word', :string
+      t.column 'term', :string
     end
   end
   module_function :setup_schema
