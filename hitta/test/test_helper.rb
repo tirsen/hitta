@@ -13,3 +13,6 @@ load(File.join(plugin_test_dir, '..', 'init.rb'))
 
 load(File.join(plugin_test_dir, 'schema.rb'))
 ActsAsFullTextSearchable.setup_schema
+
+require File.join(plugin_test_dir, 'post')
+require File.join(plugin_test_dir, 'author')
