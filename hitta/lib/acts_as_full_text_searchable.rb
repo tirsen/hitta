@@ -52,9 +52,9 @@ module ActsAsFullTextSearchable
       full_text_search_query = options.delete(:full_text_search)
       if full_text_search_query
         conditions = options[:conditions]
-        conditions = if conditions
+        if conditions
           conditions = send(:sanitize_sql, conditions)
-          conditions += "AND #{find_by_full_text_search_sql(full_text_search)}"
+          conditions += " AND #{full_text_query_to_sql_where_clause(full_text_search_query)}"
         else
           conditions = full_text_query_to_sql_where_clause(full_text_search_query)
         end
@@ -103,7 +103,7 @@ module ActsAsFullTextSearchable
     end
     
     def full_text_terms_for(value)
-      value.to_s.split(/\s/).collect(&:downcase)
+      value.to_s.gsub(/[^\w\s]/, '').split(/\s/).collect(&:downcase)
     end
   end
   

@@ -4,12 +4,26 @@ class ActsAsFullTextSearchableTest < Test::Unit::TestCase
   def setup
     Post.destroy_all
     @jon = Author.create!(:name => 'Jon Tirsen')
-    @post = Post.create!(:title => 'Ruby number 1 programming language', :body => 'Blah blah blah', :author => @jon)
+    @post = Post.create!(:title => 'Hitta, the full text search plugin', :body => 'Blah blah blah', :author => @jon)
+    
+    @hakan = Author.create!(:name => 'Hakan Raberg')
+    Post.create!(:title => 'Refactoring for Ruby', :body => 'Lorum ipsum', :author => @hakan)
   end
   
   def test_can_create_term_index
-    assert_equal ["1", "blah", "language", "number", "programming", "ruby"], 
-      ActsAsFullTextSearchable::Term.find(:all).collect(&:term).sort
+    assert_equal ["blah",
+     "for",
+     "full",
+     "hitta",
+     "ipsum",
+     "lorum",
+     "plugin",
+     "refactoring",
+     "ruby",
+     "search",
+     "text",
+     "the"], 
+      ActsAsFullTextSearchable::Term.find(:all).collect(&:term).sort.uniq
   end
   
   def test_can_do_full_text_search
@@ -32,8 +46,13 @@ class ActsAsFullTextSearchableTest < Test::Unit::TestCase
   end
   
   def test_can_search_for_multiple_terms
-    assert_equal @post, Post.find(:all, :full_text_search => 'blah ruby').first
+    assert_equal @post, Post.find(:all, :full_text_search => 'blah hitta').first
     assert_equal 0, Post.find(:all, :full_text_search => 'yadda ruby').size
     assert_equal 1, Post.find(:all, :full_text_search => 'blah blah').size
+  end
+  
+  def test_can_find_with_joins
+    assert_equal @post, @jon.posts.find(:all, :full_text_search => 'hitta').first
+    assert @jon.posts.find(:all, :full_text_search => 'ruby').empty?
   end
 end
