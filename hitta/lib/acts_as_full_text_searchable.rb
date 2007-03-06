@@ -5,7 +5,6 @@ module ActsAsFullTextSearchable
 
   def self.included(base_class)
     base_class.extend(ClassMethods)
-    # base_class.alias_method_chain :find, :full_text_search
   end
   
   module ClassMethods
@@ -14,6 +13,8 @@ module ActsAsFullTextSearchable
         extend ActsAsFullTextSearchable::SingletonMethods
       end
       include ActsAsFullTextSearchable::InstanceMethods
+
+      (class << self; self; end).alias_method_chain :find, :full_text_search
 
       has_many :full_text_terms, :as => :searchable, :class_name => 'ActsAsFullTextSearchable::Term'
       
@@ -24,29 +25,11 @@ module ActsAsFullTextSearchable
   
   module SingletonMethods
     
-    # TODO this is a copy of the same method in base.rb with the added support for :full_text_search
-    # this is less than ideal, what if the original method changes?
-    # unfortunately alias_method_chain doesn't seem to work for ActiveRecord::Base.find :-(
-    def find(*args)
-      options = extract_options_from_args!(args)
+    def find_with_full_text_search(*args)
+      options = args.last.is_a?(Hash) ? args.last : {}
       setup_full_text_search_conditions(options)
-      validate_find_options(options)
-      set_readonly_option!(options)
-
-      case args.first
-        when :first then find_initial(options)
-        when :all   then find_every(options)
-        else             find_from_ids(args, options)
-      end
+      find_without_full_text_search(*args)
     end
-
-    # TODO I want to be able to do something like this, but I can't!
-    # alias_method_chain :find, :full_text_search
-    # def find_with_full_text_search(*args)
-    #   options = args.last.is_a?(Hash) ? options : {}
-    #   setup_full_text_search_conditions(options)
-    #   find_with_no_full_text_search(*args)
-    # end
     
     def setup_full_text_search_conditions(options)
       full_text_search_query = options.delete(:full_text_search)
